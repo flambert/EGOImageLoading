@@ -31,10 +31,10 @@
 static EGOImageLoader* __imageLoader;
 
 inline static NSString* keyForURL(NSURL* url, NSString* style) {
-	if(style) {
-		return [NSString stringWithFormat:@"EGOImageLoader-%u-%u", [[url description] hash], [style hash]];
+	if(!style) {
+		return [EGOCache keyForPrefix:@"EGOImageLoader" url:url];
 	} else {
-		return [NSString stringWithFormat:@"EGOImageLoader-%u", [[url description] hash]];
+		return [[EGOCache keyForPrefix:@"EGOImageLoader" url:url] stringByAppendingFormat:@"-%u", [style hash]];
 	}
 }
 
@@ -249,7 +249,7 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 		[self handleCompletionsForConnection:connection image:nil error:error];
 		#endif
 	} else {
-		[[EGOCache currentCache] setData:connection.responseData forKey:keyForURL(connection.imageURL,nil) withTimeoutInterval:604800];
+		[[EGOCache currentCache] setData:connection.responseData forKey:keyForURL(connection.imageURL,nil) withTimeoutInterval:604800 memoryCachedObject:anImage];
 		
 		[currentConnections removeObjectForKey:connection.imageURL];
 		self.currentConnections = [[currentConnections copy] autorelease];
