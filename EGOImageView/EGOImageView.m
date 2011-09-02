@@ -24,6 +24,7 @@
 //  THE SOFTWARE.
 //
 
+#import <QuartzCore/QuartzCore.h>
 #import "EGOImageView.h"
 #import "EGOImageLoader.h"
 
@@ -51,25 +52,25 @@
 	}
 	
 	if(!aURL) {
-		self.image = self.placeholderImage;
+		self.layer.contents = (id)placeholderImage.CGImage;
 		imageURL = nil;
 		return;
 	} else {
 		imageURL = [aURL retain];
 	}
-
+    
 	[[EGOImageLoader sharedImageLoader] removeObserver:self];
 	UIImage* anImage = [[EGOImageLoader sharedImageLoader] imageForURL:aURL shouldLoadWithObserver:self];
 	
 	if(anImage) {
-		self.image = anImage;
-
+		self.layer.contents = (id)anImage.CGImage;
+        
 		// trigger the delegate callback if the image was found in the cache
-		if([self.delegate respondsToSelector:@selector(imageViewLoadedImage:)]) {
-			[self.delegate imageViewLoadedImage:self];
+		if([delegate respondsToSelector:@selector(imageViewLoadedImage:)]) {
+			[delegate imageViewLoadedImage:self];
 		}
 	} else {
-		self.image = self.placeholderImage;
+		self.layer.contents = (id)placeholderImage.CGImage;
 	}
 }
 
@@ -77,27 +78,27 @@
 #pragma mark Image loading
 
 - (void)cancelImageLoad {
-	[[EGOImageLoader sharedImageLoader] cancelLoadForURL:self.imageURL];
-	[[EGOImageLoader sharedImageLoader] removeObserver:self forURL:self.imageURL];
+	[[EGOImageLoader sharedImageLoader] cancelLoadForURL:imageURL];
+	[[EGOImageLoader sharedImageLoader] removeObserver:self forURL:imageURL];
 }
 
 - (void)imageLoaderDidLoad:(NSNotification*)notification {
-	if(![[[notification userInfo] objectForKey:@"imageURL"] isEqual:self.imageURL]) return;
-
+	if(![[[notification userInfo] objectForKey:@"imageURL"] isEqual:imageURL]) return;
+    
 	UIImage* anImage = [[notification userInfo] objectForKey:@"image"];
-	self.image = anImage;
+	self.layer.contents = (id)anImage.CGImage;
 	[self setNeedsDisplay];
 	
-	if([self.delegate respondsToSelector:@selector(imageViewLoadedImage:)]) {
-		[self.delegate imageViewLoadedImage:self];
+	if([delegate respondsToSelector:@selector(imageViewLoadedImage:)]) {
+		[delegate imageViewLoadedImage:self];
 	}	
 }
 
 - (void)imageLoaderDidFailToLoad:(NSNotification*)notification {
-	if(![[[notification userInfo] objectForKey:@"imageURL"] isEqual:self.imageURL]) return;
+	if(![[[notification userInfo] objectForKey:@"imageURL"] isEqual:imageURL]) return;
 	
-	if([self.delegate respondsToSelector:@selector(imageViewFailedToLoadImage:error:)]) {
-		[self.delegate imageViewFailedToLoadImage:self error:[[notification userInfo] objectForKey:@"error"]];
+	if([delegate respondsToSelector:@selector(imageViewFailedToLoadImage:error:)]) {
+		[delegate imageViewFailedToLoadImage:self error:[[notification userInfo] objectForKey:@"error"]];
 	}
 }
 
