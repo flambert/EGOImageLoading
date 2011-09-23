@@ -61,11 +61,10 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 @synthesize currentConnections=_currentConnections;
 
 + (EGOImageLoader*)sharedImageLoader {
-	@synchronized(self) {
-		if(!__imageLoader) {
-			__imageLoader = [[[self class] alloc] init];
-		}
-	}
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        __imageLoader = [[[self class] alloc] init];
+    });
 	
 	return __imageLoader;
 }
@@ -121,13 +120,16 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 	[self cleanUpConnection:connection];
 }
 
-- (EGOImageLoadConnection*)loadImageForURL:(NSURL*)aURL {
+- (EGOImageLoadConnection*)loadImageForURL:(NSURL*)aURL useMemoryCache:(BOOL)useMemoryCache {
 	EGOImageLoadConnection* connection;
 	
 	if((connection = [self loadingConnectionForURL:aURL])) {
+        connection.useMemoryCache = useMemoryCache;
+        
 		return connection;
 	} else {
 		connection = [[EGOImageLoadConnection alloc] initWithImageURL:aURL delegate:self];
+        connection.useMemoryCache = useMemoryCache;
 	
 		[connectionsLock lock];
 		[currentConnections setObject:connection forKey:aURL];
@@ -142,6 +144,10 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 
 #if __EGOIL_USE_NOTIF
 - (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer {
+    [self loadImageForURL:aURL observer:observer useMemoryCache:YES];
+}
+
+- (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache {
 	if(!aURL) return;
 	
 	if([observer respondsToSelector:@selector(imageLoaderDidLoad:)]) {
@@ -152,18 +158,22 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 		[[NSNotificationCenter defaultCenter] addObserver:observer selector:@selector(imageLoaderDidFailToLoad:) name:kImageNotificationLoadFailed(aURL) object:self];
 	}
 
-	[self loadImageForURL:aURL];
+	[self loadImageForURL:aURL useMemoryCache:useMemoryCache];
 }
 
 - (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer {
+    return [self imageForURL:aURL shouldLoadWithObserver:observer useMemoryCache:YES];
+}
+
+- (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache {
 	if(!aURL) return nil;
 	
-	UIImage* anImage = [[EGOCache currentCache] imageForKey:keyForURL(aURL,nil)];
+	UIImage* anImage = [[EGOCache currentCache] imageForKey:keyForURL(aURL,nil) useMemoryCache:useMemoryCache];
 	
 	if(anImage) {
 		return anImage;
 	} else {
-		[self loadImageForURL:aURL observer:observer];
+		[self loadImageForURL:aURL observer:observer useMemoryCache:useMemoryCache];
 		return nil;
 	}
 }
@@ -249,7 +259,7 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 		[self handleCompletionsForConnection:connection image:nil error:error];
 		#endif
 	} else {
-		[[EGOCache currentCache] setData:connection.responseData forKey:keyForURL(connection.imageURL,nil) withTimeoutInterval:604800 memoryCachedObject:anImage];
+		[[EGOCache currentCache] setData:connection.responseData forKey:keyForURL(connection.imageURL,nil) withTimeoutInterval:604800 memoryCachedObject:(connection.useMemoryCache ? anImage : nil)];
 		
 		[currentConnections removeObjectForKey:connection.imageURL];
 		self.currentConnections = [[currentConnections copy] autorelease];

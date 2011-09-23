@@ -35,6 +35,7 @@
 	NSMutableData* _responseData;
 	NSURLConnection* _connection;
 	NSTimeInterval _timeoutInterval;
+    BOOL _useMemoryCache;
 	
 	id<EGOImageLoadConnectionDelegate> _delegate;
 }
@@ -51,6 +52,8 @@
 @property(nonatomic,assign) id<EGOImageLoadConnectionDelegate> delegate;
 
 @property(nonatomic,assign) NSTimeInterval timeoutInterval; // Default is 30 seconds
+
+@property(nonatomic,assign) BOOL useMemoryCache;
 
 #if __EGOIL_USE_BLOCKS
 @property(nonatomic,readonly) NSMutableDictionary* handlers;

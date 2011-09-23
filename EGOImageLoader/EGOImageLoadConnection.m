@@ -28,7 +28,7 @@
 
 
 @implementation EGOImageLoadConnection
-@synthesize imageURL=_imageURL, response=_response, delegate=_delegate, timeoutInterval=_timeoutInterval;
+@synthesize imageURL=_imageURL, response=_response, delegate=_delegate, timeoutInterval=_timeoutInterval, useMemoryCache=_useMemoryCache;
 
 #if __EGOIL_USE_BLOCKS
 @synthesize handlers;
@@ -40,6 +40,7 @@
 		self.delegate = delegate;
 		_responseData = [[NSMutableData alloc] init];
 		self.timeoutInterval = 30;
+        _useMemoryCache = YES;
 		
 		#if __EGOIL_USE_BLOCKS
 		handlers = [[NSMutableDictionary alloc] init];

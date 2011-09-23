@@ -52,7 +52,9 @@
 
 #if __EGOIL_USE_NOTIF
 - (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer;
+- (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache;
 - (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer;
+- (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache;
 
 - (void)removeObserver:(id<EGOImageLoaderObserver>)observer;
 - (void)removeObserver:(id<EGOImageLoaderObserver>)observer forURL:(NSURL*)aURL;
