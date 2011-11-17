@@ -25,48 +25,46 @@
 //
 
 #import <Foundation/Foundation.h>
-
-#ifndef __EGOIL_USE_BLOCKS
-#define __EGOIL_USE_BLOCKS 0
-#endif
-
-#ifndef __EGOIL_USE_NOTIF
-#define __EGOIL_USE_NOTIF 1
-#endif
+#import "EGOImageLoaderCommon.h"
 
 @protocol EGOImageLoaderObserver;
 @interface EGOImageLoader : NSObject/*<NSURLConnectionDelegate>*/ {
 @private
-	NSDictionary* _currentConnections;
-	NSMutableDictionary* currentConnections;
-	#if __EGOIL_USE_BLOCKS
-	dispatch_queue_t _operationQueue;
-	#endif
-
 	NSLock* connectionsLock;
+	NSDictionary* _currentConnections;
+    NSMutableDictionary* currentConnections;
+    dispatch_queue_t _operationQueue;
 }
 
 + (EGOImageLoader*)sharedImageLoader;
 
 - (BOOL)isLoadingImageURL:(NSURL*)aURL;
+- (void)cancelLoadForURL:(NSURL*)aURL;
 
 #if __EGOIL_USE_NOTIF
 - (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer;
 - (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache;
+- (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer style:(NSString*)style styler:(StylerBlock)styler;
+- (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache style:(NSString*)style styler:(StylerBlock)styler;
 - (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer;
 - (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache;
+- (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer style:(NSString*)style styler:(StylerBlock)styler;
+- (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache style:(NSString*)style styler:(StylerBlock)styler;
 
 - (void)removeObserver:(id<EGOImageLoaderObserver>)observer;
 - (void)removeObserver:(id<EGOImageLoaderObserver>)observer forURL:(NSURL*)aURL;
+- (void)removeObserver:(id<EGOImageLoaderObserver>)observer forURL:(NSURL*)aURL style:(NSString*)style;
 #endif
 
 #if __EGOIL_USE_BLOCKS
 - (void)loadImageForURL:(NSURL*)aURL completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion;
-- (void)loadImageForURL:(NSURL*)aURL style:(NSString*)style styler:(UIImage* (^)(UIImage* image))styler completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion;
+- (void)loadImageForURL:(NSURL*)aURL useMemoryCache:(BOOL)useMemoryCache completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion;
+- (void)loadImageForURL:(NSURL*)aURL style:(NSString*)style styler:(StylerBlock)styler completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion;
+- (void)loadImageForURL:(NSURL*)aURL useMemoryCache:(BOOL)useMemoryCache style:(NSString*)style styler:(StylerBlock)styler completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion;
 #endif
 
 - (BOOL)hasLoadedImageURL:(NSURL*)aURL;
-- (void)cancelLoadForURL:(NSURL*)aURL;
+- (BOOL)hasLoadedImageURL:(NSURL*)aURL style:(NSString*)style;
 
 - (void)clearCacheForURL:(NSURL*)aURL;
 - (void)clearCacheForURL:(NSURL*)aURL style:(NSString*)style;

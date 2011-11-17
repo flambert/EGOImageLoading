@@ -28,7 +28,7 @@
 
 
 @implementation EGOImageLoadConnection
-@synthesize imageURL=_imageURL, response=_response, delegate=_delegate, timeoutInterval=_timeoutInterval, useMemoryCache=_useMemoryCache;
+@synthesize imageURL=_imageURL, response=_response, delegate=_delegate, timeoutInterval=_timeoutInterval, useMemoryCache=_useMemoryCache, style=_style, styler=_styler;
 
 #if __EGOIL_USE_BLOCKS
 @synthesize handlers;
@@ -105,6 +105,9 @@
 	[_connection release];
 	[_imageURL release];
 	[_responseData release];
+
+    [_style release];
+    [_styler release];
 	[super dealloc];
 }
 

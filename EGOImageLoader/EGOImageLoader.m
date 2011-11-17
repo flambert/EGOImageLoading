@@ -34,7 +34,7 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 	if(!style) {
 		return [EGOCache keyForPrefix:@"EGOImageLoader" url:url];
 	} else {
-		return [[EGOCache keyForPrefix:@"EGOImageLoader" url:url] stringByAppendingFormat:@"-%u", [style hash]];
+		return [[EGOCache keyForPrefix:@"EGOImageLoader" url:url] stringByAppendingFormat:@"-%@", style];
 	}
 }
 
@@ -42,13 +42,12 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 	#define kNoStyle @"EGOImageLoader-nostyle"
 	#define kCompletionsKey @"completions"
 	#define kStylerKey @"styler"
-	#define kStylerQueue _operationQueue
-	#define kCompletionsQueue dispatch_get_main_queue()
 #endif
 
 #if __EGOIL_USE_NOTIF
-	#define kImageNotificationLoaded(s) [@"kEGOImageLoaderNotificationLoaded-" stringByAppendingString:keyForURL(s, nil)]
-	#define kImageNotificationLoadFailed(s) [@"kEGOImageLoaderNotificationLoadFailed-" stringByAppendingString:keyForURL(s, nil)]
+    #define kStylerQueue _operationQueue
+	#define kImageNotificationLoaded(key) [@"kEGOImageLoaderNotificationLoaded-" stringByAppendingString:key]
+	#define kImageNotificationLoadFailed(key) [@"kEGOImageLoaderNotificationLoadFailed-" stringByAppendingString:key]
 #endif
 
 @interface EGOImageLoader ()
@@ -73,12 +72,10 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 	if((self = [super init])) {
 		connectionsLock = [[NSLock alloc] init];
 		currentConnections = [[NSMutableDictionary alloc] init];
-		
-		#if __EGOIL_USE_BLOCKS
-		_operationQueue = dispatch_queue_create("com.enormego.EGOImageLoader",NULL);
-		dispatch_queue_t priority = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0);
+
+        _operationQueue = dispatch_queue_create("com.enormego.EGOImageLoader",NULL);
+		dispatch_queue_t priority = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND,0);
 		dispatch_set_target_queue(priority, _operationQueue);
-		#endif
 	}
 	
 	return self;
@@ -120,62 +117,124 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 	[self cleanUpConnection:connection];
 }
 
-- (EGOImageLoadConnection*)loadImageForURL:(NSURL*)aURL useMemoryCache:(BOOL)useMemoryCache {
+- (EGOImageLoadConnection*)loadImageForURL:(NSURL*)aURL useMemoryCache:(BOOL)useMemoryCache style:(NSString *)style styler:(UIImage *(^)(UIImage *))styler {
 	EGOImageLoadConnection* connection;
 	
 	if((connection = [self loadingConnectionForURL:aURL])) {
         connection.useMemoryCache = useMemoryCache;
-        
+
 		return connection;
 	} else {
 		connection = [[EGOImageLoadConnection alloc] initWithImageURL:aURL delegate:self];
         connection.useMemoryCache = useMemoryCache;
-	
+        connection.style = style;
+        connection.styler = styler;
+
 		[connectionsLock lock];
 		[currentConnections setObject:connection forKey:aURL];
 		self.currentConnections = [[currentConnections copy] autorelease];
 		[connectionsLock unlock];
 		[connection performSelector:@selector(start) withObject:nil afterDelay:0.01];
 		[connection release];
-		
+
 		return connection;
 	}
 }
 
 #if __EGOIL_USE_NOTIF
 - (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer {
-    [self loadImageForURL:aURL observer:observer useMemoryCache:YES];
+    [self loadImageForURL:aURL observer:observer useMemoryCache:YES style:nil styler:NULL];
 }
 
 - (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache {
-	if(!aURL) return;
-	
-	if([observer respondsToSelector:@selector(imageLoaderDidLoad:)]) {
-		[[NSNotificationCenter defaultCenter] addObserver:observer selector:@selector(imageLoaderDidLoad:) name:kImageNotificationLoaded(aURL) object:self];
-	}
-	
-	if([observer respondsToSelector:@selector(imageLoaderDidFailToLoad:)]) {
-		[[NSNotificationCenter defaultCenter] addObserver:observer selector:@selector(imageLoaderDidFailToLoad:) name:kImageNotificationLoadFailed(aURL) object:self];
-	}
+    [self loadImageForURL:aURL observer:observer useMemoryCache:useMemoryCache style:nil styler:NULL];
+}
 
-	[self loadImageForURL:aURL useMemoryCache:useMemoryCache];
+- (void)loadImageForURL:(NSURL *)aURL observer:(id<EGOImageLoaderObserver>)observer style:(NSString *)style styler:(UIImage *(^)(UIImage *))styler {
+    [self loadImageForURL:aURL observer:observer useMemoryCache:YES style:style styler:styler];
+}
+
+- (void)loadImageForURL:(NSURL*)aURL observer:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache style:(NSString *)style styler:(UIImage *(^)(UIImage *))styler {
+	if(!aURL) return;
+
+    NSString* key = keyForURL(aURL,style);
+	if([observer respondsToSelector:@selector(imageLoaderDidLoad:)])
+		[[NSNotificationCenter defaultCenter] addObserver:observer selector:@selector(imageLoaderDidLoad:) name:kImageNotificationLoaded(key) object:self];
+	if([observer respondsToSelector:@selector(imageLoaderDidFailToLoad:)])
+		[[NSNotificationCenter defaultCenter] addObserver:observer selector:@selector(imageLoaderDidFailToLoad:) name:kImageNotificationLoadFailed(key) object:self];
+
+	[self loadImageForURL:aURL useMemoryCache:useMemoryCache style:style styler:styler];
 }
 
 - (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer {
-    return [self imageForURL:aURL shouldLoadWithObserver:observer useMemoryCache:YES];
+    return [self imageForURL:aURL shouldLoadWithObserver:observer useMemoryCache:YES style:nil styler:NULL];
 }
 
 - (UIImage*)imageForURL:(NSURL*)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache {
+    return [self imageForURL:aURL shouldLoadWithObserver:observer useMemoryCache:useMemoryCache style:nil styler:NULL];
+}
+
+- (UIImage*)imageForURL:(NSURL *)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer style:(NSString *)style styler:(UIImage *(^)(UIImage *))styler {
+    return [self imageForURL:aURL shouldLoadWithObserver:observer useMemoryCache:YES style:style styler:styler];
+}
+
+- (UIImage*)imageForURL:(NSURL *)aURL shouldLoadWithObserver:(id<EGOImageLoaderObserver>)observer useMemoryCache:(BOOL)useMemoryCache style:(NSString *)style styler:(UIImage *(^)(UIImage *))styler {
 	if(!aURL) return nil;
-	
-	UIImage* anImage = [[EGOCache currentCache] imageForKey:keyForURL(aURL,nil) useMemoryCache:useMemoryCache];
-	
-	if(anImage) {
-		return anImage;
-	} else {
-		[self loadImageForURL:aURL observer:observer useMemoryCache:useMemoryCache];
-		return nil;
-	}
+
+    // Check if it is in memory (styled or not)
+    NSString* key = keyForURL(aURL,style);
+    if (useMemoryCache) {
+        if([[EGOCache currentCache] hasCacheForKey:key checkOnlyMemory:YES]) {
+            // It is, return it
+            return [[EGOCache currentCache] imageForKey:key useMemoryCache:useMemoryCache];
+        }
+    }
+
+    // Check if it is on disk (styled or not)
+    if([[EGOCache currentCache] hasCacheForKey:key]){
+        // It is, load it in background and send notification
+        if([observer respondsToSelector:@selector(imageLoaderDidLoad:)])
+            [[NSNotificationCenter defaultCenter] addObserver:observer selector:@selector(imageLoaderDidLoad:) name:kImageNotificationLoaded(key) object:self];
+
+        __block EGOImageLoader* object = self;
+        dispatch_async(kStylerQueue, ^{
+            UIImage* anImage = [[EGOCache currentCache] imageForKey:key useMemoryCache:useMemoryCache];
+            NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoaded(key)
+                                                                         object:object
+                                                                       userInfo:[NSDictionary dictionaryWithObjectsAndKeys:anImage,@"image",aURL,@"imageURL",nil]];
+            [[NSNotificationCenter defaultCenter] performSelectorOnMainThread:@selector(postNotification:) withObject:notification waitUntilDone:YES];
+        });
+        return nil;
+    }
+
+    // Check if it is cached, but unstyled
+    NSString* keyNoStyle = keyForURL(aURL,nil);
+    if(style && styler && [[EGOCache currentCache] hasCacheForKey:keyNoStyle]) {
+        // It is, load it, style it, cache it and send notification
+        if([observer respondsToSelector:@selector(imageLoaderDidLoad:)])
+            [[NSNotificationCenter defaultCenter] addObserver:observer selector:@selector(imageLoaderDidLoad:) name:kImageNotificationLoaded(key) object:self];
+
+        __block EGOImageLoader* object = self;
+        dispatch_async(kStylerQueue, ^{
+            UIImage* anImage = [[EGOCache currentCache] imageForKey:keyNoStyle useMemoryCache:useMemoryCache];
+            UIImage* styledImage = styler(anImage);
+            if (styledImage) {
+                [[EGOCache currentCache] setImage:styledImage forKey:key withTimeoutInterval:604800 useMemoryCache:useMemoryCache];
+                if (styledImage != anImage) {
+                    [[EGOCache currentCache] removeMemoryCacheForKey:keyNoStyle];
+                }
+            }
+            NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoaded(key)
+                                                                         object:object
+                                                                       userInfo:[NSDictionary dictionaryWithObjectsAndKeys:styledImage,@"image",aURL,@"imageURL",nil]];
+            [[NSNotificationCenter defaultCenter] performSelectorOnMainThread:@selector(postNotification:) withObject:notification waitUntilDone:YES];
+        });
+        return nil;
+    }
+
+    // It is not in cache, load it from URL
+    [self loadImageForURL:aURL observer:observer useMemoryCache:useMemoryCache style:style styler:styler];
+    return nil;
 }
 
 - (void)removeObserver:(id<EGOImageLoaderObserver>)observer {
@@ -183,32 +242,51 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 }
 
 - (void)removeObserver:(id<EGOImageLoaderObserver>)observer forURL:(NSURL*)aURL {
-	[[NSNotificationCenter defaultCenter] removeObserver:observer name:kImageNotificationLoaded(aURL) object:self];
-	[[NSNotificationCenter defaultCenter] removeObserver:observer name:kImageNotificationLoadFailed(aURL) object:self];
+    [self removeObserver:observer forURL:aURL style:nil];
 }
 
+- (void)removeObserver:(id<EGOImageLoaderObserver>)observer forURL:(NSURL*)aURL style:(NSString*)style {
+    NSString* key = keyForURL(aURL,style);
+	[[NSNotificationCenter defaultCenter] removeObserver:observer name:kImageNotificationLoaded(key) object:self];
+	[[NSNotificationCenter defaultCenter] removeObserver:observer name:kImageNotificationLoadFailed(key) object:self];
+}
 #endif
 
 #if __EGOIL_USE_BLOCKS
 - (void)loadImageForURL:(NSURL*)aURL completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion {
-	[self loadImageForURL:aURL style:nil styler:nil completion:completion];
+    [self loadImageForURL:aURL useMemoryCache:YES style:nil styler:NULL completion:completion];
+}
+
+- (void)loadImageForURL:(NSURL*)aURL useMemoryCache:(BOOL)useMemoryCache completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion {
+    [self loadImageForURL:aURL useMemoryCache:useMemoryCache style:nil styler:NULL completion:completion];
 }
 
 - (void)loadImageForURL:(NSURL*)aURL style:(NSString*)style styler:(UIImage* (^)(UIImage* image))styler completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion {
-	UIImage* anImage = [[EGOCache currentCache] imageForKey:keyForURL(aURL,style)];
+    [self loadImageForURL:aURL useMemoryCache:YES style:style styler:styler completion:completion];
+}
+
+- (void)loadImageForURL:(NSURL*)aURL useMemoryCache:(BOOL)useMemoryCache style:(NSString*)style styler:(UIImage* (^)(UIImage* image))styler completion:(void (^)(UIImage* image, NSURL* imageURL, NSError* error))completion {
+    NSString* key = keyForURL(aURL,style);
+	UIImage* anImage = [[EGOCache currentCache] imageForKey:key];
 
 	if(anImage) {
 		completion(anImage, aURL, nil);
 	} else if(!anImage && styler && style && (anImage = [[EGOCache currentCache] imageForKey:keyForURL(aURL,nil)])) {
+        dispatch_queue_t calling_queue = dispatch_get_current_queue();
 		dispatch_async(kStylerQueue, ^{
-			UIImage* image = styler(anImage);
-			[[EGOCache currentCache] setImage:image forKey:keyForURL(aURL, style) withTimeoutInterval:604800];
-			dispatch_async(kCompletionsQueue, ^{
-				completion(image, aURL, nil);
+			UIImage* styledImage = styler(anImage);
+            if (styledImage) {
+                [[EGOCache currentCache] setImage:styledImage forKey:key withTimeoutInterval:604800 useMemoryCache:useMemoryCache];
+                if (styledImage != anImage) {
+                    [[EGOCache currentCache] removeMemoryCacheForKey:keyForURL(aURL,nil)];
+                }
+            }
+			dispatch_async(calling_queue, ^{
+				completion(styledImage, aURL, nil);
 			});
 		});
 	} else {
-		EGOImageLoadConnection* connection = [self loadImageForURL:aURL];
+		EGOImageLoadConnection* connection = [self loadImageForURL:aURL useMemoryCache:useMemoryCache style:style styler:styler];
 		void (^completionCopy)(UIImage* image, NSURL* imageURL, NSError* error) = [completion copy];
 		
 		NSString* handlerKey = style ? style : kNoStyle;
@@ -235,7 +313,11 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 #endif
 
 - (BOOL)hasLoadedImageURL:(NSURL*)aURL {
-	return [[EGOCache currentCache] hasCacheForKey:keyForURL(aURL,nil)];
+    return [self hasLoadedImageURL:aURL style:nil];
+}
+
+- (BOOL)hasLoadedImageURL:(NSURL*)aURL style:(NSString*)style {
+	return [[EGOCache currentCache] hasCacheForKey:keyForURL(aURL,style)];
 }
 
 #pragma mark -
@@ -247,37 +329,56 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 	if(!anImage) {
 		NSError* error = [NSError errorWithDomain:[connection.imageURL host] code:406 userInfo:nil];
 		
-		#if __EGOIL_USE_NOTIF
-		NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoadFailed(connection.imageURL)
+#if __EGOIL_USE_NOTIF
+		NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoadFailed(keyForURL(connection.imageURL,connection.style))
 																	 object:self
 																   userInfo:[NSDictionary dictionaryWithObjectsAndKeys:error,@"error",connection.imageURL,@"imageURL",nil]];
 		
 		[[NSNotificationCenter defaultCenter] performSelectorOnMainThread:@selector(postNotification:) withObject:notification waitUntilDone:YES];
-		#endif
+#endif
 		
-		#if __EGOIL_USE_BLOCKS
+#if __EGOIL_USE_BLOCKS
 		[self handleCompletionsForConnection:connection image:nil error:error];
-		#endif
+#endif
 	} else {
-		[[EGOCache currentCache] setData:connection.responseData forKey:keyForURL(connection.imageURL,nil) withTimeoutInterval:604800 memoryCachedObject:(connection.useMemoryCache ? anImage : nil)];
+        NSString* keyNoStyle = keyForURL(connection.imageURL,nil);
+		[[EGOCache currentCache] setImage:anImage forKey:keyNoStyle withTimeoutInterval:604800 useMemoryCache:connection.useMemoryCache];
 		
 		[currentConnections removeObjectForKey:connection.imageURL];
 		self.currentConnections = [[currentConnections copy] autorelease];
 		
-		#if __EGOIL_USE_NOTIF
-		NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoaded(connection.imageURL)
-																	 object:self
-																   userInfo:[NSDictionary dictionaryWithObjectsAndKeys:anImage,@"image",connection.imageURL,@"imageURL",nil]];
+#if __EGOIL_USE_NOTIF
+        // Check if the image must be styled
+        if (connection.style && connection.styler) {
+            // It does, style it and send notification
+            __block EGOImageLoader* object = self;
+            dispatch_async(kStylerQueue, ^{
+                NSString* key = keyForURL(connection.imageURL,connection.style);
+                UIImage* styledImage = connection.styler(anImage);
+                if (styledImage) {
+                    [[EGOCache currentCache] setImage:styledImage forKey:key withTimeoutInterval:604800 useMemoryCache:connection.useMemoryCache];
+                    if (styledImage != anImage) {
+                        [[EGOCache currentCache] removeMemoryCacheForKey:keyNoStyle];
+                    }
+                }
+                NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoaded(key)
+                                                                             object:object
+                                                                           userInfo:[NSDictionary dictionaryWithObjectsAndKeys:styledImage,@"image",connection.imageURL,@"imageURL",nil]];
+                [[NSNotificationCenter defaultCenter] performSelectorOnMainThread:@selector(postNotification:) withObject:notification waitUntilDone:YES];
+            });
+        } else {
+            // It does not, send notification
+            NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoaded(keyNoStyle)
+                                                                         object:self
+                                                                       userInfo:[NSDictionary dictionaryWithObjectsAndKeys:anImage,@"image",connection.imageURL,@"imageURL",nil]];
+            [[NSNotificationCenter defaultCenter] performSelectorOnMainThread:@selector(postNotification:) withObject:notification waitUntilDone:YES];
+        }
+#endif
 		
-		[[NSNotificationCenter defaultCenter] performSelectorOnMainThread:@selector(postNotification:) withObject:notification waitUntilDone:YES];
-		#endif
-		
-		#if __EGOIL_USE_BLOCKS
+#if __EGOIL_USE_BLOCKS
 		[self handleCompletionsForConnection:connection image:anImage error:nil];
-		#endif
+#endif
 	}
-	
-	
 
 	[self cleanUpConnection:connection];
 }
@@ -286,17 +387,16 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 	[currentConnections removeObjectForKey:connection.imageURL];
 	self.currentConnections = [[currentConnections copy] autorelease];
 	
-	#if __EGOIL_USE_NOTIF
-	NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoadFailed(connection.imageURL)
+#if __EGOIL_USE_NOTIF
+	NSNotification* notification = [NSNotification notificationWithName:kImageNotificationLoadFailed(keyForURL(connection.imageURL,connection.style))
 																 object:self
 															   userInfo:[NSDictionary dictionaryWithObjectsAndKeys:error,@"error",connection.imageURL,@"imageURL",nil]];
-	
 	[[NSNotificationCenter defaultCenter] performSelectorOnMainThread:@selector(postNotification:) withObject:notification waitUntilDone:YES];
-	#endif
+#endif
 	
-	#if __EGOIL_USE_BLOCKS
+#if __EGOIL_USE_BLOCKS
 	[self handleCompletionsForConnection:connection image:nil error:error];
-	#endif
+#endif
 
 	[self cleanUpConnection:connection];
 }
@@ -307,8 +407,9 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 
 	NSURL* imageURL = connection.imageURL;
 	
+    dispatch_queue_t calling_queue = dispatch_get_current_queue();
 	void (^callCompletions)(UIImage* anImage, NSArray* completions) = ^(UIImage* anImage, NSArray* completions) {
-		dispatch_async(kCompletionsQueue, ^{
+		dispatch_async(calling_queue, ^{
 			for(void (^completion)(UIImage* image, NSURL* imageURL, NSError* error) in completions) {
 				completion(anImage, connection.imageURL, error);
 			}
@@ -321,7 +422,12 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 		if(!error && image && styler) {
 			dispatch_async(kStylerQueue, ^{
 				UIImage* anImage = styler(image);
-				[[EGOCache currentCache] setImage:anImage forKey:keyForURL(imageURL, styleKey) withTimeoutInterval:604800];
+                if (anImage) {
+                    [[EGOCache currentCache] setImage:anImage forKey:keyForURL(imageURL, styleKey) withTimeoutInterval:604800 useMemoryCache:connection.useMemoryCache];
+                    if (anImage != image) {
+                        [[EGOCache currentCache] removeMemoryCacheForKey:keyForURL(imageURL, nil)];
+                    }
+                }
 				callCompletions(anImage, [handler objectForKey:kCompletionsKey]);
 			});
 		} else {
@@ -334,13 +440,10 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 #pragma mark -
 
 - (void)dealloc {
-	#if __EGOIL_USE_BLOCKS
-		dispatch_release(_operationQueue), _operationQueue = nil;
-	#endif
-	
+	[connectionsLock release];
+	[currentConnections release];
 	self.currentConnections = nil;
-	[currentConnections release], currentConnections = nil;
-	[connectionsLock release], connectionsLock = nil;
+	dispatch_release(_operationQueue);
 	[super dealloc];
 }
 

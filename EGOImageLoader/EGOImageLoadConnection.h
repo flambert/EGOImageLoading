@@ -25,6 +25,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "EGOImageLoaderCommon.h"
 
 @protocol EGOImageLoadConnectionDelegate;
 
@@ -36,7 +37,9 @@
 	NSURLConnection* _connection;
 	NSTimeInterval _timeoutInterval;
     BOOL _useMemoryCache;
-	
+    NSString* _style;
+    StylerBlock _styler;
+
 	id<EGOImageLoadConnectionDelegate> _delegate;
 }
 
@@ -54,6 +57,9 @@
 @property(nonatomic,assign) NSTimeInterval timeoutInterval; // Default is 30 seconds
 
 @property(nonatomic,assign) BOOL useMemoryCache;
+
+@property(nonatomic,copy) NSString* style;
+@property(nonatomic,copy) StylerBlock styler;
 
 #if __EGOIL_USE_BLOCKS
 @property(nonatomic,readonly) NSMutableDictionary* handlers;
