@@ -52,7 +52,7 @@
 	}
 	
 	if(!aURL) {
-		self.layer.contents = (id)placeholderImage.CGImage;
+		self.image = placeholderImage;
 		imageURL = nil;
 		return;
 	} else {
@@ -63,14 +63,14 @@
 	UIImage* anImage = [[EGOImageLoader sharedImageLoader] imageForURL:aURL shouldLoadWithObserver:self];
 	
 	if(anImage) {
-		self.layer.contents = (id)anImage.CGImage;
+		self.image = anImage;
         
 		// trigger the delegate callback if the image was found in the cache
 		if([delegate respondsToSelector:@selector(imageViewLoadedImage:)]) {
 			[delegate imageViewLoadedImage:self];
 		}
 	} else {
-		self.layer.contents = (id)placeholderImage.CGImage;
+		self.image = placeholderImage;
 	}
 }
 
@@ -86,7 +86,7 @@
 	if(![[[notification userInfo] objectForKey:@"imageURL"] isEqual:imageURL]) return;
     
 	UIImage* anImage = [[notification userInfo] objectForKey:@"image"];
-	self.layer.contents = (id)anImage.CGImage;
+    self.image = anImage;
 	[self setNeedsDisplay];
 	
 	if([delegate respondsToSelector:@selector(imageViewLoadedImage:)]) {
