@@ -39,6 +39,9 @@
 - (id)initWithPlaceholderImage:(UIImage*)anImage delegate:(id<EGOImageViewDelegate>)aDelegate;
 
 - (void)cancelImageLoad;
+- (void)cancelImageLoadWithStyle:(NSString *)style;
+
+- (void)setImageURL:(NSURL *)aURL style:(NSString *)style styler:(StylerBlock)styler;
 
 @property(nonatomic,retain) NSURL* imageURL;
 @property(nonatomic,retain) UIImage* placeholderImage;

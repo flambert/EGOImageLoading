@@ -45,8 +45,12 @@
 }
 
 - (void)setImageURL:(NSURL *)aURL {
+    [self setImageURL:aURL style:nil styler:NULL];
+}
+
+- (void)setImageURL:(NSURL *)aURL style:(NSString *)style styler:(UIImage *(^)(UIImage *))styler {
 	if(imageURL) {
-		[[EGOImageLoader sharedImageLoader] removeObserver:self forURL:imageURL];
+		[[EGOImageLoader sharedImageLoader] removeObserver:self forURL:imageURL style:style];
 		[imageURL release];
 		imageURL = nil;
 	}
@@ -59,7 +63,8 @@
 		imageURL = [aURL retain];
 	}
 	
-	UIImage* anImage = [[EGOImageLoader sharedImageLoader] imageForURL:aURL shouldLoadWithObserver:self];
+	[[EGOImageLoader sharedImageLoader] removeObserver:self];
+	UIImage* anImage = [[EGOImageLoader sharedImageLoader] imageForURL:aURL shouldLoadWithObserver:self style:style styler:styler];
 	
 	if(anImage) {
 		[self setImage:anImage forState:UIControlStateNormal];
@@ -72,8 +77,12 @@
 #pragma mark Image loading
 
 - (void)cancelImageLoad {
+    [self cancelImageLoadWithStyle:nil];
+}
+
+- (void)cancelImageLoadWithStyle:(NSString *)style {
 	[[EGOImageLoader sharedImageLoader] cancelLoadForURL:self.imageURL];
-	[[EGOImageLoader sharedImageLoader] removeObserver:self forURL:self.imageURL];
+	[[EGOImageLoader sharedImageLoader] removeObserver:self forURL:self.imageURL style:style];
 }
 
 - (void)imageLoaderDidLoad:(NSNotification*)notification {
