@@ -28,8 +28,6 @@
 #import "EGOImageLoadConnection.h"
 #import "EGOCache.h"
 
-static EGOImageLoader* __imageLoader;
-
 inline static NSString* keyForURL(NSURL* url, NSString* style) {
 	if(!style) {
 		return [EGOCache keyForPrefix:@"EGOImageLoader" url:url];
@@ -60,6 +58,7 @@ inline static NSString* keyForURL(NSURL* url, NSString* style) {
 @synthesize currentConnections=_currentConnections;
 
 + (EGOImageLoader*)sharedImageLoader {
+    static EGOImageLoader* __imageLoader;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         __imageLoader = [[[self class] alloc] init];
