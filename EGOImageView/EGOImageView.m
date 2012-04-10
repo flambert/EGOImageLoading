@@ -107,7 +107,7 @@
 #pragma mark -
 - (void)dealloc {
 	[[EGOImageLoader sharedImageLoader] removeObserver:self];
-    
+	self.delegate = nil;
 	self.imageURL = nil;
 	self.placeholderImage = nil;
     [super dealloc];
